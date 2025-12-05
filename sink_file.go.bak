@@ -1,0 +1,150 @@
+package alog
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+	"sync"
+	"time"
+)
+
+type RollingPolicy int
+
+const (
+	RollNone RollingPolicy = iota
+	RollByDay
+	RollBySize
+)
+
+type FileOption func(*FileSink)
+
+func WithDailyRolling() FileOption {
+	return func(s *FileSink) {
+		s.policy = RollByDay
+		s.currentDay = time.Now().Format("2006-01-02")
+	}
+}
+
+func WithSizeRolling(size interface{}) FileOption {
+	return func(s *FileSink) {
+		s.policy = RollBySize
+		s.maxSize = parseSize(size)
+	}
+}
+
+func WithMaxDays(n int) FileOption {
+	return func(s *FileSink) {
+		s.maxDays = n
+	}
+}
+
+func WithMaxBackups(n int) FileOption {
+	return func(s *FileSink) {
+		s.maxBackups = n
+	}
+}
+
+type FileSink struct {
+	mu   sync.Mutex
+	file *os.File
+
+	path   string
+	policy RollingPolicy
+
+	currentDay string
+	maxSize    int64
+	maxDays    int
+	maxBackups int
+}
+
+func NewFileSink(path string, opts ...FileOption) (*FileSink, error) {
+	sink := &FileSink{
+		path: path,
+	}
+	for _, opt := range opts {
+		opt(sink)
+	}
+
+	if err := sink.open(); err != nil {
+		return nil, err
+	}
+
+	return sink, nil
+}
+
+func (s *FileSink) open() error {
+	file, err := os.OpenFile(s.currentFilePath(), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	if err != nil {
+		return err
+	}
+	s.file = file
+	return nil
+}
+
+func (s *FileSink) currentFilePath() string {
+	if s.policy == RollByDay {
+		dir := filepath.Dir(s.path)
+		base := filepath.Base(s.path)
+		ext := filepath.Ext(base)
+		name := strings.TrimSuffix(base, ext)
+
+		return filepath.Join(dir, fmt.Sprintf("%s-%s%s", name, time.Now().Format("2006-01-02"), ext))
+	}
+
+	return s.path
+}
+
+func (s *FileSink) Write(line string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.checkRotate()
+
+	s.file.WriteString(line + "\n")
+}
+
+func (s *FileSink) checkRotate() {
+	switch s.policy {
+	case RollByDay:
+		day := time.Now().Format("2006-01-02")
+		if day != s.currentDay {
+			s.currentDay = day
+			s.rotate()
+		}
+
+	case RollBySize:
+		if s.maxSize > 0 {
+			if info, err := s.file.Stat(); err == nil && info.Size() >= s.maxSize {
+				s.rotate()
+			}
+		}
+
+	default:
+		return
+	}
+}
+
+func (s *FileSink) rotate() {
+	s.file.Close()
+
+	if s.policy == RollBySize {
+		s.rotateBySize()
+	}
+
+	s.open()
+
+	s.cleanup()
+}
+
+func (s *FileSink) rotateBySize() {
+	return
+}
+
+func (s *FileSink) cleanup() {
+	return
+}
+
+func parseSize(size interface{}) int64 {
+	return 0
+}
