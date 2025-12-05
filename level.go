@@ -53,3 +53,7 @@ func (l Level) String() string {
 		return "INFO "
 	}
 }
+
+func (l *Logger) SetLevel(level Level) {
+	l.level = level
+}
