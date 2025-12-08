@@ -1,6 +1,7 @@
 package alog
 
 import (
+	"fmt"
 	"os"
 	"sync"
 	"time"
@@ -105,4 +106,52 @@ func (s *FileSink) checkDayRolling(t time.Time) {
 	if day == s.currentDay {
 		return
 	}
+
+	yesterday := s.currentDay
+	s.currentDay = day
+
+	s.file.Close()
+
+	s.rotateFinal(yesterday)
+
+	s.cleanup()
+	s.openNewFile()
+}
+
+func (s *FileSink) checkSizeRolling(line string) {
+	if s.maxSize <= 0 {
+		return
+	}
+
+	info, err := s.file.Stat()
+	if err != nil {
+		return
+	}
+
+	if info.Size() >= s.maxSize {
+		s.rotateSize()
+	}
+}
+
+func (s *FileSink) rotateSize() {
+	s.file.Close()
+
+	i := 1
+	for {
+		old := fmt.Sprintf("%s.%d", s.path, i)
+		if _, err := os.Stat(old); os.IsNotExist(err) {
+			break
+		}
+		i++
+	}
+
+	for j := i - 1; j > 0; j-- {
+		old := fmt.Sprintf("%s.%d", s.path, j)
+		new := fmt.Sprintf("%s.%d", s.path, j+1)
+		os.Rename(old, new)
+	}
+
+	os.Rename(s.path, fmt.Sprintf("%s.1", s.path))
+
+	s.openNewFile()
 }
