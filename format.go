@@ -10,10 +10,18 @@ type Formatter struct {
 }
 
 func NewFormatter(sep string, fields ...Field) *Formatter {
-	return &Formatter{
-		fields: fields,
-		sep:    sep,
+	return NewFormatterWithOptions(sep, Fields(fields...))
+}
+
+func NewFormatterWithOptions(sep string, opt FieldOptions) *Formatter {
+	fs := make([]Field, 0, len(opt.Fields))
+	for _, it := range opt.Fields {
+		if it == nil {
+			continue
+		}
+		fs = append(fs, it)
 	}
+	return &Formatter{fields: fs, sep: sep}
 }
 
 func (f *Formatter) SetSeparator(sep string) {

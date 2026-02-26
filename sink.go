@@ -1,5 +1,9 @@
 package alog
 
+type Sink interface {
+	Write(line string)
+}
+
 type MultiSink struct {
 	sinks []Sink
 }

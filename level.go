@@ -1,5 +1,7 @@
 package alog
 
+import "strings"
+
 type Level int
 
 const (
@@ -13,16 +15,18 @@ const (
 )
 
 func ParseLevel(s string) Level {
+	s = strings.ToLower(strings.TrimSpace(s))
+
 	switch s {
 	case "trace":
 		return TRACE
 	case "debug":
 		return DEBUG
-	case "info":
+	case "info", "information":
 		return INFO
 	case "warn", "warning":
 		return WARN
-	case "error":
+	case "error", "err":
 		return ERROR
 	case "panic":
 		return PANIC

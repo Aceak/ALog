@@ -1,6 +1,7 @@
 package alog
 
 import (
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -51,7 +52,11 @@ func (f *LevelField) Render(ctx LogContext) string {
 	case "lower":
 		return strings.ToLower(levelStr)
 	case "title":
-		return strings.Title(strings.ToLower(levelStr))
+		s := strings.ToLower(levelStr)
+		if len(s) == 0 {
+			return s
+		}
+		return strings.ToUpper(s[:1]) + s[1:]
 	default:
 		return strings.ToUpper(levelStr)
 	}
@@ -223,10 +228,26 @@ func (f *FileLineField) Render(ctx LogContext) string {
 }
 
 /* ---------------- Ext ---------------- */
-type ExtField struct{}
+type ExtOptions struct {
+	Prefix      string // 例如 "" 或 "ext:"
+	MaxPairs    int    // 最多输出多少个 k=v；0 表示不限制
+	MaxValueLen int    // value 最大长度；0 表示不限制
+	Ellipsis    string // 超过限制时尾部提示，默认 "…"
+}
+
+type ExtField struct {
+	Opt ExtOptions
+}
 
 func NewExtField() Field {
-	return &ExtField{}
+	return &ExtField{
+		Opt: ExtOptions{
+			Prefix:      "",
+			MaxPairs:    0,
+			MaxValueLen: 0,
+			Ellipsis:    "…",
+		},
+	}
 }
 
 func (f *ExtField) Key() string { return "ext" }
@@ -236,8 +257,15 @@ func (f *ExtField) Render(ctx LogContext) string {
 		return ""
 	}
 
+	key := make([]string, 0, len(ctx.Ext))
+	for k := range ctx.Ext {
+		key = append(key, k)
+	}
+	sort.Strings(key)
+
 	var sb strings.Builder
-	for k, v := range ctx.Ext {
+	for _, k := range key {
+		v := ctx.Ext[k]
 		sb.WriteString(k)
 		sb.WriteString("=")
 		sb.WriteString(v)
